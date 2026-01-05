@@ -1,61 +1,97 @@
 import streamlit as st
+from PIL import Image, ImageFilter, ImageOps
+import io
 
-st.set_page_config(page_title="Fathi Prompt Builder", page_icon="🎨", layout="wide")
+st.set_page_config(page_title="Fathi Media Tools", page_icon="🛠️", layout="centered")
 
-st.title("🎨 Mesin Pembuat Prompt Fathi")
-st.caption("Klik-klik je, terus siap prompt power untuk Midjourney/Dall-E.")
+st.title("🛠️ Fathi Media Tools")
+st.caption("Tak perlu buka Canva. Upload, tukar saiz, download. Siap.")
 
-# --- BAHAGIAN KIRI: INPUT ---
-col1, col2 = st.columns([1, 1])
-
-with col1:
-    st.subheader("1. Subjek Utama")
-    subjek = st.text_area("Apa yang nak dilukis?", height=100, placeholder="Contoh: A Japanese soldier holding a bicycle in Kota Bharu beach...")
+# --- FUNGSI PROSES GAMBAR ---
+def resize_with_blur(img, target_ratio=(9, 16)):
+    # 1. Kira saiz baru
+    width, height = img.size
+    target_width = 1080
+    target_height = 1920 # Default HD TikTok/Story
     
-    st.subheader("2. Gaya & Suasana (Vibe)")
-    # Pilihan gaya yang awak selalu guna
-    style = st.selectbox("Gaya Seni:", 
-                         ["Cinematic Reality (Macam Filem)", "Vintage 1940s Photo", "Oil Painting", "Anime Style", "Sketch/Drawing"])
+    # 2. Buat Background Blur
+    # Resize gambar asal jadi besar sikit untuk cover background
+    bg = img.resize((target_width, target_height))
+    bg = bg.filter(ImageFilter.GaussianBlur(radius=50)) # Kasi kabur
     
-    lighting = st.select_slider("Pencahayaan:", 
-                                options=["Dull/Overcast", "Natural Sunlight", "Golden Hour (Senja)", "Dark/Moody", "Neon Lights"])
+    # 3. Letak Gambar Asal di Tengah
+    # Kita pastikan gambar asal tak herot (maintain aspect ratio)
+    img.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
     
-    camera = st.selectbox("Sudut Kamera:", 
-                          ["Eye Level (Biasa)", "Low Angle (Nampak Gah)", "Drone View (Dari Atas)", "Close Up (Muka Sahaja)", "Wide Angle (Pemandangan Luas)"])
-
-with col2:
-    st.subheader("3. Perincian Teknikal")
+    # Kira posisi tengah
+    x = (target_width - img.width) // 2
+    y = (target_height - img.height) // 2
     
-    # Checkbox untuk tambah 'perasa'
-    st.write("Tambah Elemen Extra:")
-    kualiti = st.checkbox("High Quality keywords (8k, masterpiece, sharp focus)", value=True)
-    no_blur = st.checkbox("Anti-Blur (depth of field, detailed background)")
+    bg.paste(img, (x, y))
+    return bg
+
+# --- UI WEBSITE ---
+tab1, tab2 = st.tabs(["📱 Auto-Fit TikTok/Story", "🔄 Converter Pantas"])
+
+# TAB 1: UBAH SAIZ (RESIZE)
+with tab1:
+    st.header("Gambar AI → TikTok (9:16)")
+    st.write("Masalah biasa: Gambar AI selalunya petak/melintang. Masuk TikTok jadi hitam atas bawah.")
+    st.write("Alat ni akan tambah **'Blurry Background'** automatik.")
     
-    # Aspect Ratio (Midjourney style)
-    ratio = st.radio("Saiz Gambar (--ar):", ["16:9 (Landscape)", "9:16 (TikTok/Story)", "1:1 (Square)", "4:5 (Instagram)"])
+    uploaded_file = st.file_uploader("Upload Gambar (JPG/PNG)", type=['jpg', 'png', 'jpeg', 'webp'])
     
-    # Versi Midjourney
-    version = st.radio("Versi Enjin (--v):", ["6.0", "5.2", "Niji (Anime)"])
+    if uploaded_file:
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Gambar Asal", use_container_width=True)
+        
+        if st.button("✨ Tukar Jadi Saiz Story/TikTok"):
+            with st.spinner("Sedang memproses..."):
+                # Proses gambar
+                new_image = resize_with_blur(image)
+                
+                st.success("Siap!")
+                st.image(new_image, caption="Hasil (Boleh terus post TikTok)", use_container_width=True)
+                
+                # Butang Download
+                buf = io.BytesIO()
+                new_image.save(buf, format="JPEG", quality=95)
+                byte_im = buf.getvalue()
+                
+                st.download_button(
+                    label="📥 Download Gambar Siap",
+                    data=byte_im,
+                    file_name="fathi_tiktok_ready.jpg",
+                    mime="image/jpeg"
+                )
 
-# --- BAHAGIAN BAWAH: HASIL ---
-st.divider()
-st.header("✨ Hasil Prompt Anda")
-
-# Logic gabung ayat
-prompt_text = f"{subjek}, {style}, {lighting} lighting, {camera} shot"
-
-if kualiti:
-    prompt_text += ", 8k resolution, masterpiece, highly detailed, sharp focus"
-if no_blur:
-    prompt_text += ", detailed background, no blur"
-
-# Format teknikal Midjourney
-ar_code = ratio.split("(")[0].strip() # Ambil nombor je, buang teks dalam kurungan
-v_code = version.split("(")[0].strip()
-
-final_prompt = f"/imagine prompt: {prompt_text} --ar {ar_code} --v {v_code}"
-
-# Paparan kod yang cantik
-st.code(final_prompt, language="markdown")
-
-st.info("👆 Tekan ikon 'Copy' kecil kat bucu kanan kotak di atas, lepas tu paste kat Discord/Bing.")
+# TAB 2: CONVERTER SIMPLE
+with tab2:
+    st.header("Penukar Format")
+    st.write("Kadang-kadang download gambar format **.WEBP** tapi laptop/phone tak boleh baca. Tukar kat sini.")
+    
+    file_convert = st.file_uploader("Upload File Pelik", type=['webp', 'bmp', 'tiff'])
+    
+    if file_convert:
+        img_c = Image.open(file_convert)
+        st.image(img_c, caption="Gambar Preview", width=200)
+        
+        format_pilihan = st.radio("Tukar kepada:", ["JPEG (Ringan)", "PNG (Kualiti Tinggi)"])
+        
+        if st.button("Tukar Format"):
+            buf_c = io.BytesIO()
+            fmt = "JPEG" if "JPEG" in format_pilihan else "PNG"
+            
+            # Kalau JPEG kena convert mode ke RGB dulu (buang transparency)
+            if fmt == "JPEG":
+                img_c = img_c.convert("RGB")
+                
+            img_c.save(buf_c, format=fmt)
+            byte_c = buf_c.getvalue()
+            
+            st.download_button(
+                label=f"📥 Download sebagai {fmt}",
+                data=byte_c,
+                file_name=f"converted_image.{fmt.lower()}",
+                mime=f"image/{fmt.lower()}"
+            )
