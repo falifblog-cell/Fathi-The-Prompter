@@ -1,97 +1,91 @@
 import streamlit as st
-from PIL import Image, ImageFilter, ImageOps
-import io
+from openai import OpenAI
 
-st.set_page_config(page_title="Fathi Media Tools", page_icon="🛠️", layout="centered")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="Fathi's Ghostwriter", page_icon="✍️", layout="wide")
 
-st.title("🛠️ Fathi Media Tools")
-st.caption("Tak perlu buka Canva. Upload, tukar saiz, download. Siap.")
+st.title("✍️ Fathi's Ghostwriter (Anti-AI Detector)")
+st.caption("App ini akan meniru gaya penulisan asal anda supaya hasil nampak 100% manusia.")
 
-# --- FUNGSI PROSES GAMBAR ---
-def resize_with_blur(img, target_ratio=(9, 16)):
-    # 1. Kira saiz baru
-    width, height = img.size
-    target_width = 1080
-    target_height = 1920 # Default HD TikTok/Story
+# --- SIDEBAR: API KEY ---
+with st.sidebar:
+    st.header("Setting")
+    api_key = st.text_input("Masukkan OpenAI API Key", type="password", help="Dapatkan di platform.openai.com")
+    if not api_key:
+        st.warning("Sila masukkan API Key untuk mula.")
+        st.stop()
     
-    # 2. Buat Background Blur
-    # Resize gambar asal jadi besar sikit untuk cover background
-    bg = img.resize((target_width, target_height))
-    bg = bg.filter(ImageFilter.GaussianBlur(radius=50)) # Kasi kabur
+    model_pilihan = st.selectbox("Model AI", ["gpt-4o", "gpt-4-turbo"], index=0, help="GPT-4o paling pandai tiru gaya bahasa.")
     
-    # 3. Letak Gambar Asal di Tengah
-    # Kita pastikan gambar asal tak herot (maintain aspect ratio)
-    img.thumbnail((target_width, target_height), Image.Resampling.LANCZOS)
-    
-    # Kira posisi tengah
-    x = (target_width - img.width) // 2
-    y = (target_height - img.height) // 2
-    
-    bg.paste(img, (x, y))
-    return bg
+    st.divider()
+    st.info("Tips: Masukkan contoh tulisan anda yang paling 'human' (banyak slang, emosi, atau ayat pendek).")
 
-# --- UI WEBSITE ---
-tab1, tab2 = st.tabs(["📱 Auto-Fit TikTok/Story", "🔄 Converter Pantas"])
+# --- MAIN AREA ---
+col1, col2 = st.columns(2)
 
-# TAB 1: UBAH SAIZ (RESIZE)
-with tab1:
-    st.header("Gambar AI → TikTok (9:16)")
-    st.write("Masalah biasa: Gambar AI selalunya petak/melintang. Masuk TikTok jadi hitam atas bawah.")
-    st.write("Alat ni akan tambah **'Blurry Background'** automatik.")
+with col1:
+    st.subheader("1. Gaya Rujukan (Reference)")
+    ref_text = st.text_area("Paste tulisan lama anda di sini:", height=300, 
+                            placeholder="Contoh: 'Aku sebenarnya malas nak tulis panjang. Tapi bila fikir balik, benda ni penting...'")
+
+with col2:
+    st.subheader("2. Draft / Point Baru")
+    draft_text = st.text_area("Apa yang nak ditulis sekarang?", height=300, 
+                              placeholder="Point: \n- AI makin power\n- Kita kena adapt\n- Jangan takut teknologi")
+
+# --- THE "SECRET SAUCE" PROMPT ---
+def humanize_text(client, reference, draft):
+    prompt_rahsia = f"""
+    You are a professional Ghostwriter. Your task is to rewrite the 'DRAFT TEXT' to strictly match the writing style, tone, and vocabulary of the 'REFERENCE TEXT'.
     
-    uploaded_file = st.file_uploader("Upload Gambar (JPG/PNG)", type=['jpg', 'png', 'jpeg', 'webp'])
+    CRITICAL INSTRUCTIONS FOR ZERO AI DETECTION:
+    1. Analyze the 'REFERENCE TEXT' for:
+       - Sentence length variance (Burstiness). Humans mix very short sentences with long ones.
+       - Slang/Colloquialism (Bahasa Pasar/Rojak if present).
+       - Tone (Sarcastic, Serious, Santai?).
+    2. Rewrite the 'DRAFT TEXT' using that exact persona.
+    3. DO NOT use typical AI transition words like "Tambahan pula", "Di samping itu", "Kesimpulannya". Use natural transitions like "Lagipun", "Sebab tu lah", "So,".
+    4. Introduce small imperfections or casual phrasing if the reference has them.
+    5. The goal is High Perplexity and High Burstiness.
     
-    if uploaded_file:
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Gambar Asal", use_container_width=True)
+    ---
+    REFERENCE TEXT (STYLE SOURCE):
+    {reference}
+    ---
+    DRAFT TEXT (TO REWRITE):
+    {draft}
+    ---
+    """
+    
+    response = client.chat.completions.create(
+        model=model_pilihan,
+        messages=[
+            {"role": "system", "content": "You are a human writer mimic. You do not sound like an AI."},
+            {"role": "user", "content": prompt_rahsia}
+        ],
+        temperature=0.7 # 0.7 bagus untuk kreativiti terkawal
+    )
+    return response.choices[0].message.content
+
+# --- ACTION BUTTON ---
+st.divider()
+
+if st.button("✨ Tulis Semula (Ikut Style Saya)", type="primary"):
+    if ref_text and draft_text:
+        client = OpenAI(api_key=api_key)
         
-        if st.button("✨ Tukar Jadi Saiz Story/TikTok"):
-            with st.spinner("Sedang memproses..."):
-                # Proses gambar
-                new_image = resize_with_blur(image)
+        with st.spinner("Sedang menganalisis gaya otak anda..."):
+            try:
+                hasil = humanize_text(client, ref_text, draft_text)
                 
-                st.success("Siap!")
-                st.image(new_image, caption="Hasil (Boleh terus post TikTok)", use_container_width=True)
+                st.subheader("📝 Hasil Tulisan (Humanized):")
+                st.write(hasil)
                 
-                # Butang Download
-                buf = io.BytesIO()
-                new_image.save(buf, format="JPEG", quality=95)
-                byte_im = buf.getvalue()
+                st.divider()
+                st.code(hasil, language="text") # Senang copy
+                st.success("Siap! Cuba check dekat ZeroGPT.")
                 
-                st.download_button(
-                    label="📥 Download Gambar Siap",
-                    data=byte_im,
-                    file_name="fathi_tiktok_ready.jpg",
-                    mime="image/jpeg"
-                )
-
-# TAB 2: CONVERTER SIMPLE
-with tab2:
-    st.header("Penukar Format")
-    st.write("Kadang-kadang download gambar format **.WEBP** tapi laptop/phone tak boleh baca. Tukar kat sini.")
-    
-    file_convert = st.file_uploader("Upload File Pelik", type=['webp', 'bmp', 'tiff'])
-    
-    if file_convert:
-        img_c = Image.open(file_convert)
-        st.image(img_c, caption="Gambar Preview", width=200)
-        
-        format_pilihan = st.radio("Tukar kepada:", ["JPEG (Ringan)", "PNG (Kualiti Tinggi)"])
-        
-        if st.button("Tukar Format"):
-            buf_c = io.BytesIO()
-            fmt = "JPEG" if "JPEG" in format_pilihan else "PNG"
-            
-            # Kalau JPEG kena convert mode ke RGB dulu (buang transparency)
-            if fmt == "JPEG":
-                img_c = img_c.convert("RGB")
-                
-            img_c.save(buf_c, format=fmt)
-            byte_c = buf_c.getvalue()
-            
-            st.download_button(
-                label=f"📥 Download sebagai {fmt}",
-                data=byte_c,
-                file_name=f"converted_image.{fmt.lower()}",
-                mime=f"image/{fmt.lower()}"
-            )
+            except Exception as e:
+                st.error(f"Error: {e}")
+    else:
+        st.warning("Sila isi kedua-dua kotak di atas.")
