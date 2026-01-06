@@ -2,15 +2,27 @@ import streamlit as st
 import math
 
 # --- SETUP MUKA SURAT ---
-st.set_page_config(page_title="Kalkulator Kiraan Saham", page_icon="🇲🇾", layout="centered")
+st.set_page_config(page_title="Kalkulator Saham Pro", page_icon="📈", layout="centered")
 
-# --- FUNGSI TUKAR TEMA (SIDEBAR) ---
+# --- FUNGSI TUKAR TEMA & NOTA TEPI (SIDEBAR) ---
 with st.sidebar:
     st.header("⚙️ Tetapan")
     tema = st.radio("Pilih Tema:", ["🌙 Mode Gelap (Dark)", "☀️ Mode Cerah (Light)"])
     
     st.divider()
-    st.info("ℹ️ **Nota MPlus Global:** Jika anda trade Saham Bursa menggunakan apps MPlus Global, kadar fee adalah sama dengan MPlus Online (0.05% Min RM8).")
+    
+    # --- NOTA PASAL FEE ---
+    st.header("ℹ️ Info Fee Broker")
+    st.info("""
+    **Kenapa Kena RM8?**
+    Broker akan caj ikut mana yang **LEBIH TINGGI** antara "%" atau "Minimum".
+    
+    **Contoh: MPlus (Min RM8)**
+    - Jika trade kecil (bawah RM16k), fee % mungkin cuma RM2. Tapi broker tetap caj **RM8**.
+    - Jika trade besar (atas RM16k), baru broker caj ikut **0.05%**.
+    """)
+    
+    st.caption("Nota MPlus Global: Jika trade Saham Bursa guna apps Global, fee dia sama macam MPlus Online (0.05% Min RM8).")
 
 # Logic CSS (Tema)
 if tema == "☀️ Mode Cerah (Light)":
@@ -23,9 +35,9 @@ if tema == "☀️ Mode Cerah (Light)":
         </style>
     """, unsafe_allow_html=True)
 
-# --- JUDUL APP ---
-st.title("🇲🇾 Kalkulator Saham Bursa Pro")
-st.caption("Mengikut struktur fee terkini Broker Malaysia (Rakuten, MPlus, Investment Banks).")
+# --- JUDUL APP (YANG DITUKAR) ---
+st.title("📈 Kalkulator Saham Pro")
+st.caption("Kira untung bersih sebenar mengikut struktur fee terkini Broker Malaysia.")
 
 # --- BAHAGIAN 1: INPUT DATA ---
 st.subheader("1. Masukkan Detail Trade")
@@ -78,73 +90,58 @@ def kira_kos_broker_malaysia(nilai_trade, jenis_broker):
     
     # --- LOGIK 1: RAKUTEN TRADE (TIER SYSTEM) ---
     if "Rakuten" in jenis_broker:
-        # Rakuten auto-detect tier berdasarkan nilai trade
         if nilai_trade <= 1000:
             brokerage_fee = 7.00
         elif nilai_trade <= 9999.99:
             brokerage_fee = 9.00
         else:
-            # Tier 3: 0.10% cap maksimum RM100
             fee_calc = nilai_trade * 0.001
             brokerage_fee = min(fee_calc, 100.00)
             
     # --- LOGIK 2: MPLUS CASH / GLOBAL (BURSA) ---
     elif "MPlus / MPlus Global (Cash Upfront)" in jenis_broker:
-        # 0.05% Min RM8
         fee_calc = nilai_trade * 0.0005
         brokerage_fee = max(fee_calc, 8.00)
 
     # --- LOGIK 3: MPLUS NORMAL ---
     elif "MPlus (Normal" in jenis_broker:
-        # 0.42% Min RM12 (Standard legacy rate)
         fee_calc = nilai_trade * 0.0042
         brokerage_fee = max(fee_calc, 12.00)
 
     # --- LOGIK 4: BANK CASH UPFRONT (General) ---
     elif "Cash Upfront)" in jenis_broker:
-        # Kebanyakan bank (Maybank/CGS) charge 0.42% Min RM12 untuk cash account
         fee_calc = nilai_trade * 0.0042
         brokerage_fee = max(fee_calc, 12.00)
         
     # --- LOGIK 5: NORMAL / REMISIER ---
     elif "Remisier" in jenis_broker:
-        # Rate mahal (ada remisier tolong) 0.60% Min RM40
         fee_calc = nilai_trade * 0.0060
         brokerage_fee = max(fee_calc, 40.00)
         
     # --- LOGIK 6: CUSTOM / PROMO ---
     elif "Custom" in jenis_broker:
         fee_calc = nilai_trade * 0.0010
-        brokerage_fee = max(fee_calc, 8.00) # Anggaran min RM8
+        brokerage_fee = max(fee_calc, 8.00)
 
     # --- CAJ WAJIB LAIN (BURSA MALAYSIA & KERAJAAN) ---
-    
-    # 1. Clearing Fee (0.03%, Max RM1000)
     clearing_fee = min(nilai_trade * 0.0003, 1000.00)
-    
-    # 2. Stamp Duty (RM1.50 setiap RM1000, Max RM1000)
-    # Contoh: Nilai RM2500 -> RM1000(1.5) + RM1000(1.5) + RM500(1.5) = RM4.50
     stamp_duty = math.ceil(nilai_trade / 1000) * 1.50
     stamp_duty = min(stamp_duty, 1000.00)
-    
-    # 3. SST (8% ke atas BROKERAGE FEE sahaja) - Bermula 1 Mac 2024
     sst = brokerage_fee * 0.08
     
     total_kos = brokerage_fee + clearing_fee + stamp_duty + sst
     
-    return total_kos, brokerage_fee # Return brokerage asing untuk display
+    return total_kos, brokerage_fee
 
 # --- PENGIRAAN ---
 unit_total = lot_size * 100
 nilai_beli_kasar = buy_price * unit_total
 nilai_jual_kasar = sell_price * unit_total
 
-# Kira Kos
 kos_beli, broker_beli = kira_kos_broker_malaysia(nilai_beli_kasar, pilihan_broker)
 kos_jual, broker_jual = kira_kos_broker_malaysia(nilai_jual_kasar, pilihan_broker)
 total_fee_hangus = kos_beli + kos_jual
 
-# Aliran Tunai
 total_duit_keluar = nilai_beli_kasar + kos_beli
 total_duit_masuk = nilai_jual_kasar - kos_jual
 untung_bersih = total_duit_masuk - total_duit_keluar
@@ -157,14 +154,12 @@ if st.button("🧮 Kira Untung Bersih", type="primary"):
     
     st.subheader("3. Keputusan Kewangan")
     
-    # Metrics Utama
     k1, k2 = st.columns(2)
     k1.metric("💸 Modal Kena Ada (Total)", f"RM {total_duit_keluar:,.2f}", delta="- Termasuk Fee", delta_color="inverse")
     k2.metric("💰 Duit Masuk Bersih", f"RM {total_duit_masuk:,.2f}", delta="+ Lepas Tolak Fee")
     
     st.divider()
     
-    # Big Result
     if untung_bersih > 0:
         st.success(f"### 🎉 UNTUNG BERSIH: RM {untung_bersih:,.2f}")
         st.write(f"ROI: **+{peratus_untung:.2f}%**")
@@ -175,7 +170,6 @@ if st.button("🧮 Kira Untung Bersih", type="primary"):
     else:
         st.warning("### 😐 BALIK MODAL (Breakeven)")
 
-    # Breakdown Detail
     with st.expander("🔍 Tengok Perincian Fee (Broker + Bursa + Gov)"):
         st.write("### Semasa Beli")
         st.text(f"Harga Saham : RM {nilai_beli_kasar:,.2f}")
