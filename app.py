@@ -92,9 +92,9 @@ with col2:
 st.divider()
 st.subheader("2. Pilih Broker")
 
-# --- SENARAI BROKER TERKINI ---
+# --- SENARAI BROKER (MPlus Online diletakkan paling atas sebagai Default) ---
 list_broker = [
-    "MPlus Online / Global (Cash Account)",
+    "MPlus Online / Global (Cash Account)", 
     "Rakuten Trade (Rate Baru 2025)",
     "Maybank Investment (Cash Account 0.10%)",
     "CGS iTrade (Cash Account 0.06%)",
@@ -102,6 +102,8 @@ list_broker = [
     "Investment Bank Normal (0.42% - 0.60%)",
     "Custom Rate (Set Sendiri)"
 ]
+
+# index=0 bermaksud dia akan pilih yang pertama dalam senarai (MPlus)
 pilihan_broker = st.selectbox("Jenis Akaun Broker:", list_broker, index=0)
 
 # --- 5. LOGIK KIRAAN (BACKEND) ---
