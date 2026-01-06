@@ -2,75 +2,62 @@ import streamlit as st
 import google.generativeai as genai
 
 # --- SETUP ---
-st.set_page_config(page_title="Fathi Ghostwriter Pro", page_icon="✍️", layout="wide")
+st.set_page_config(page_title="Fathi Ghostwriter (Auto-Fix)", page_icon="🤖", layout="wide")
 
-st.title("✍️ Fathi Ghostwriter (Versi Stabil)")
-st.caption("Masukkan gaya tulisan asal, AI akan tiru sebiji.")
+st.title("🤖 Fathi Ghostwriter (Auto-Detect)")
+st.caption("Versi ini akan cari sendiri model AI yang 'hidup' dalam API Key tuan.")
 
-# --- SIDEBAR: API KEY ---
+# --- SIDEBAR ---
 with st.sidebar:
-    st.header("🔑 Kunci AI")
     api_key = st.text_input("Paste Google API Key", type="password")
-    st.info("Dapatkan key di: aistudio.google.com")
-    st.warning("Pilih 'Create API key in NEW project' bila buat key.")
+    st.info("Key dari: aistudio.google.com")
 
-# --- FUNGSI AI (SAFE MODE) ---
-def tulis_semula(key, rujukan, draf):
-    # Setup
+# --- FUNGSI 'JALA IKAN' (TRY ALL MODELS) ---
+def tulis_guna_sebarang_model(key, rujukan, draf):
     genai.configure(api_key=key)
     
-    # Kita guna 'gemini-pro' sebab dia paling stabil & jarang error version
-    model = genai.GenerativeModel('gemini-pro')
+    # Senarai model yang kita akan cuba satu-persatu
+    senarai_model = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro", "gemini-1.0-pro"]
     
     prompt = f"""
-    Bertindak sebagai penulis profesional. Tugas anda adalah menulis semula DRAF TEKS supaya mengikut GAYA RUJUKAN yang diberikan.
-    
-    ARAHAN PENTING (GAYA MANUSIA):
-    1. Tiru nada (tone), penggunaan ganti nama (aku/kau/saya), dan slang dari RUJUKAN.
-    2. Jangan guna perkataan skema AI (contoh: "kesimpulannya", "tambahan pula").
-    3. Variasikan panjang ayat. Manusia suka campur ayat pendek dan panjang.
-    
-    ---
-    GAYA RUJUKAN (TIRU INI):
-    {rujukan}
-    ---
-    DRAF TEKS (ISI KANDUNGAN):
-    {draf}
-    ---
+    Tulis semula teks ini mengikut gaya rujukan.
+    STYLE: {rujukan}
+    CONTENT: {draf}
     """
     
-    response = model.generate_content(prompt)
-    return response.text
+    error_log = []
+    
+    # Loop: Cuba model pertama, kalau gagal, cuba kedua...
+    for nama_model in senarai_model:
+        try:
+            model = genai.GenerativeModel(nama_model)
+            response = model.generate_content(prompt)
+            return response.text, nama_model # Berjaya! Pulangkan teks & nama model
+        except Exception as e:
+            error_log.append(f"{nama_model}: Gagal")
+            continue # Try model seterusnya
+            
+    # Kalau semua gagal
+    return None, str(error_log)
 
-# --- ANTARA MUKA ---
+# --- UI ---
 col1, col2 = st.columns(2)
-
 with col1:
-    st.subheader("1. Gaya Asal (Copy Paste tulisan lama)")
-    ref_text = st.text_area("Contoh gaya penulisan tuan:", height=300, 
-                            placeholder="Paste satu artikel lama tuan kat sini...")
-
+    ref_text = st.text_area("Gaya Asal:", height=200, placeholder="Paste tulisan lama...")
 with col2:
-    st.subheader("2. Idea Baru (Draft Cincai)")
-    draft_text = st.text_area("Apa point nak tulis hari ni?", height=300, 
-                              placeholder="Contoh: Cerita pasal zaman ayah muda-muda, susah payah dulu...")
+    draft_text = st.text_area("Idea Baru:", height=200, placeholder="Nak tulis apa...")
 
-# --- BUTANG PROSES ---
-st.divider()
-
-if st.button("✨ Tulis Sekarang", type="primary"):
-    if not api_key:
-        st.error("Tuan belum masukkan API Key kat sebelah kiri.")
-    elif not ref_text or not draft_text:
-        st.warning("Isi dulu kotak Gaya Asal dan Idea Baru tu.")
-    else:
-        with st.spinner("Sedang menulis ikut gaya tuan..."):
-            try:
-                hasil = tulis_semula(api_key, ref_text, draft_text)
-                st.success("Siap!")
-                st.subheader("Hasil Tulisan:")
+if st.button("✨ Tulis Sekarang (Auto-Detect)", type="primary"):
+    if api_key and ref_text and draft_text:
+        with st.spinner("Sedang mencari model AI yang sesuai..."):
+            hasil, info = tulis_guna_sebarang_model(api_key, ref_text, draft_text)
+            
+            if hasil:
+                st.success(f"Berjaya! Menggunakan model: {info}")
                 st.write(hasil)
-                st.code(hasil, language="text") # Senang copy
-            except Exception as e:
-                st.error(f"Ada masalah: {e}")
-                st.caption("Jika error 404 keluar lagi, sila tekan 'Reboot App' di menu atas kanan.")
+                st.code(hasil, language="text")
+            else:
+                st.error("Semua model gagal. Masalah mungkin pada API Key.")
+                st.error(f"Log Error: {info}")
+    else:
+        st.warning("Isi semua kotak dulu.")
