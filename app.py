@@ -1,21 +1,19 @@
 import streamlit as st
-from openai import OpenAI
+import google.generativeai as genai
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Fathi's Ghostwriter", page_icon="✍️", layout="wide")
+st.set_page_config(page_title="Fathi's Ghostwriter (Gemini)", page_icon="✍️", layout="wide")
 
-st.title("✍️ Fathi's Ghostwriter (Anti-AI Detector)")
-st.caption("App ini akan meniru gaya penulisan asal anda supaya hasil nampak 100% manusia.")
+st.title("✍️ Fathi's Ghostwriter (Edisi Gemini)")
+st.caption("Guna AI Google (Percuma) untuk tiru gaya tulisan anda.")
 
 # --- SIDEBAR: API KEY ---
 with st.sidebar:
     st.header("Setting")
-    api_key = st.text_input("Masukkan OpenAI API Key", type="password", help="Dapatkan di platform.openai.com")
-    if not api_key:
-        st.warning("Sila masukkan API Key untuk mula.")
-        st.stop()
+    api_key = st.text_input("Masukkan Google API Key", type="password", help="Dapatkan free di aistudio.google.com")
     
-    model_pilihan = st.selectbox("Model AI", ["gpt-4o", "gpt-4-turbo"], index=0, help="GPT-4o paling pandai tiru gaya bahasa.")
+    # Model Gemini yang laju dan percuma
+    model_pilihan = st.selectbox("Model", ["gemini-1.5-flash", "gemini-1.5-pro"], index=0)
     
     st.divider()
     st.info("Tips: Masukkan contoh tulisan anda yang paling 'human' (banyak slang, emosi, atau ayat pendek).")
@@ -33,59 +31,63 @@ with col2:
     draft_text = st.text_area("Apa yang nak ditulis sekarang?", height=300, 
                               placeholder="Point: \n- AI makin power\n- Kita kena adapt\n- Jangan takut teknologi")
 
-# --- THE "SECRET SAUCE" PROMPT ---
-def humanize_text(client, reference, draft):
-    prompt_rahsia = f"""
-    You are a professional Ghostwriter. Your task is to rewrite the 'DRAFT TEXT' to strictly match the writing style, tone, and vocabulary of the 'REFERENCE TEXT'.
+# --- THE "SECRET SAUCE" PROMPT (GEMINI VERSION) ---
+def humanize_text_gemini(api_key, model_name, reference, draft):
+    # Setup Gemini
+    genai.configure(api_key=api_key)
     
-    CRITICAL INSTRUCTIONS FOR ZERO AI DETECTION:
-    1. Analyze the 'REFERENCE TEXT' for:
-       - Sentence length variance (Burstiness). Humans mix very short sentences with long ones.
-       - Slang/Colloquialism (Bahasa Pasar/Rojak if present).
-       - Tone (Sarcastic, Serious, Santai?).
-    2. Rewrite the 'DRAFT TEXT' using that exact persona.
-    3. DO NOT use typical AI transition words like "Tambahan pula", "Di samping itu", "Kesimpulannya". Use natural transitions like "Lagipun", "Sebab tu lah", "So,".
-    4. Introduce small imperfections or casual phrasing if the reference has them.
-    5. The goal is High Perplexity and High Burstiness.
+    generation_config = {
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "top_k": 64,
+        "max_output_tokens": 8192,
+    }
+    
+    model = genai.GenerativeModel(
+        model_name=model_name,
+        generation_config=generation_config,
+        system_instruction="You are a professional Ghostwriter. Your ONLY task is to rewrite the input text to match a specific reference style."
+    )
+    
+    prompt_rahsia = f"""
+    Please rewrite the 'DRAFT TEXT' below. You must STRICTLY mimic the writing style, tone, vocabulary, and sentence structure of the 'REFERENCE TEXT'.
+    
+    CRITICAL INSTRUCTIONS FOR HUMAN-LIKE WRITING:
+    1. **Analyze the Reference:** Look for 'burstiness' (mix of very short and long sentences). Does the writer use slang (Bahasa Pasar)? Is the tone sarcastic or serious?
+    2. **Mimic the Imperfections:** Do not write perfectly. Humans make casual transitions. Avoid robotic words like "Kesimpulannya" or "Tambahan pula". Use natural connectors like "So,", "Lagipun,", "Btw," if the reference uses them.
+    3. **Language:** If the reference is in Malay/Rojak, the output MUST be in Malay/Rojak.
     
     ---
-    REFERENCE TEXT (STYLE SOURCE):
+    REFERENCE TEXT (STYLE TO COPY):
     {reference}
     ---
-    DRAFT TEXT (TO REWRITE):
+    DRAFT TEXT (CONTENT TO REWRITE):
     {draft}
     ---
     """
     
-    response = client.chat.completions.create(
-        model=model_pilihan,
-        messages=[
-            {"role": "system", "content": "You are a human writer mimic. You do not sound like an AI."},
-            {"role": "user", "content": prompt_rahsia}
-        ],
-        temperature=0.7 # 0.7 bagus untuk kreativiti terkawal
-    )
-    return response.choices[0].message.content
+    response = model.generate_content(prompt_rahsia)
+    return response.text
 
 # --- ACTION BUTTON ---
 st.divider()
 
-if st.button("✨ Tulis Semula (Ikut Style Saya)", type="primary"):
-    if ref_text and draft_text:
-        client = OpenAI(api_key=api_key)
-        
-        with st.spinner("Sedang menganalisis gaya otak anda..."):
+if st.button("✨ Tulis Semula (Guna Gemini)", type="primary"):
+    if not api_key:
+        st.warning("Sila masukkan Google API Key kat tepi tu dulu.")
+    elif ref_text and draft_text:
+        with st.spinner("Gemini sedang memproses gaya otak anda..."):
             try:
-                hasil = humanize_text(client, ref_text, draft_text)
+                hasil = humanize_text_gemini(api_key, model_pilihan, ref_text, draft_text)
                 
-                st.subheader("📝 Hasil Tulisan (Humanized):")
+                st.subheader("📝 Hasil Tulisan:")
                 st.write(hasil)
                 
                 st.divider()
                 st.code(hasil, language="text") # Senang copy
-                st.success("Siap! Cuba check dekat ZeroGPT.")
+                st.success("Siap!")
                 
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Error: {e} (Mungkin API Key salah atau kuota free dah habis limit per minit)")
     else:
-        st.warning("Sila isi kedua-dua kotak di atas.")
+        st.warning("Sila isi kedua-dua kotak rujukan dan draft.")
