@@ -14,13 +14,13 @@ with st.sidebar:
     st.info("Dapatkan key di: aistudio.google.com")
     st.warning("Pilih 'Create API key in NEW project' bila buat key.")
 
-# --- FUNGSI AI (GEMINI FLASH) ---
+# --- FUNGSI AI (SAFE MODE) ---
 def tulis_semula(key, rujukan, draf):
     # Setup
     genai.configure(api_key=key)
     
-    # Kita guna Flash sebab dia laju & free
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Kita guna 'gemini-pro' sebab dia paling stabil & jarang error version
+    model = genai.GenerativeModel('gemini-pro')
     
     prompt = f"""
     Bertindak sebagai penulis profesional. Tugas anda adalah menulis semula DRAF TEKS supaya mengikut GAYA RUJUKAN yang diberikan.
@@ -29,7 +29,6 @@ def tulis_semula(key, rujukan, draf):
     1. Tiru nada (tone), penggunaan ganti nama (aku/kau/saya), dan slang dari RUJUKAN.
     2. Jangan guna perkataan skema AI (contoh: "kesimpulannya", "tambahan pula").
     3. Variasikan panjang ayat. Manusia suka campur ayat pendek dan panjang.
-    4. Jika rujukan dalam Bahasa Inggeris, tulis dalam Inggeris. Jika Melayu, tulis Melayu.
     
     ---
     GAYA RUJUKAN (TIRU INI):
@@ -73,5 +72,5 @@ if st.button("✨ Tulis Sekarang", type="primary"):
                 st.write(hasil)
                 st.code(hasil, language="text") # Senang copy
             except Exception as e:
-                st.error(f"Ada masalah Key: {e}")
-                st.caption("Tips: Pastikan Key tu baru dan pilih 'New Project' masa buat.")
+                st.error(f"Ada masalah: {e}")
+                st.caption("Jika error 404 keluar lagi, sila tekan 'Reboot App' di menu atas kanan.")
