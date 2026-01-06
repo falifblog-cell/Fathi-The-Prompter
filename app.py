@@ -7,25 +7,40 @@ st.set_page_config(page_title="Kalkulator Saham Fathi", page_icon="📈", layout
 st.title("📈 Kalkulator Untung Saham")
 st.caption("Kira untung bersih & aliran tunai sebenar (Cashflow).")
 
-# --- INPUT DATA ---
+# --- BAHAGIAN 1: INPUT DATA ---
 st.markdown("### 1. Masukkan Detail Trade")
 
 col1, col2 = st.columns(2)
 
+# --- KOLUM BELI (KIRI) ---
 with col1:
     st.info("🟢 BUY (Beli)")
     buy_price = st.number_input("Harga Beli (RM)", value=0.500, step=0.005, format="%.3f")
     lot_size = st.number_input("Berapa Lot?", value=1, step=1, help="1 Lot = 100 Unit")
     
+    # KIRA TERUS NILAI KASAR BELI
+    total_beli_raw = buy_price * lot_size * 100
+    st.markdown(f"**Nilai Saham:** :green[RM {total_beli_raw:,.2f}]")
+
+# --- KOLUM JUAL (KANAN) ---
 with col2:
     st.error("🔴 SELL (Jual)")
     sell_price = st.number_input("Harga Jual (RM)", value=0.550, step=0.005, format="%.3f")
     
-    # Pilihan Broker
-    broker_type = st.selectbox("Jenis Broker:", 
-                               ["Min RM 8 (Standard)", "Cash Upfront (0.05%)", "Normal (0.42%)", "Tiada Kos (Paper Trade)"])
+    # Kita anggap jual jumlah lot yang sama
+    st.write(f"Jual: {lot_size} Lot") 
+    
+    # KIRA TERUS NILAI KASAR JUAL
+    total_jual_raw = sell_price * lot_size * 100
+    st.markdown(f"**Nilai Saham:** :red[RM {total_jual_raw:,.2f}]")
 
-# --- FUNGSI KIRA KOS BURSA ---
+# PILIHAN BROKER (Duduk tengah-tengah)
+st.divider()
+broker_type = st.selectbox("Jenis Broker & Fee:", 
+                           ["Min RM 8 (Standard)", "Cash Upfront (0.05%)", "Normal (0.42%)", "Tiada Kos (Paper Trade)"])
+
+
+# --- FUNGSI KIRA KOS (LOGIK MATEMATIK) ---
 def kira_kos(nilai_trade, jenis_broker):
     if jenis_broker == "Tiada Kos (Paper Trade)":
         return 0.0
@@ -46,6 +61,7 @@ def kira_kos(nilai_trade, jenis_broker):
     clearing = min(nilai_trade * 0.0003, 1000.0)
     
     # 3. Stamp Duty (RM1.50 per RM1000, max RM1000)
+    # Formula: Round up setiap 1000
     stamp = math.ceil(nilai_trade / 1000) * 1.50
     stamp = min(stamp, 1000.0)
     
@@ -55,7 +71,7 @@ def kira_kos(nilai_trade, jenis_broker):
     total_kos = brokerage + clearing + stamp + sst
     return total_kos
 
-# --- LOGIC KIRAAN ---
+# --- LOGIC PENGIRAAN AKHIR ---
 unit_total = lot_size * 100
 nilai_beli_kasar = buy_price * unit_total
 nilai_jual_kasar = sell_price * unit_total
@@ -65,28 +81,24 @@ kos_beli = kira_kos(nilai_beli_kasar, broker_type)
 kos_jual = kira_kos(nilai_jual_kasar, broker_type)
 total_kos_transaksi = kos_beli + kos_jual
 
-# ALIRAN TUNAI SEBENAR (TOTAL DUIT)
-# Beli = Harga Saham + Kos (Kena bayar lebih)
+# Kira Aliran Tunai
 total_duit_keluar = nilai_beli_kasar + kos_beli 
-
-# Jual = Harga Saham - Kos (Dapat kurang)
 total_duit_masuk = nilai_jual_kasar - kos_jual 
-
-# Untung Bersih
 untung_bersih = total_duit_masuk - total_duit_keluar
 peratus_untung = (untung_bersih / total_duit_keluar) * 100 if total_duit_keluar > 0 else 0
 
-# --- PAPARAN KEPUTUSAN ---
+
+# --- BAHAGIAN 2: KEPUTUSAN ---
 st.divider()
 
-if st.button("🧮 Kira Total Duit", type="primary"):
+if st.button("🧮 Kira Untung Bersih (Net Profit)", type="primary"):
     
     st.markdown("### 2. Keputusan Kewangan")
     
     # Tunjuk Aliran Tunai Besar-Besar
     k1, k2 = st.columns(2)
-    k1.metric("💸 Total Duit KELUAR (Modal)", f"RM {total_duit_keluar:,.2f}", delta="- (Modal + Fee)", delta_color="inverse")
-    k2.metric("💰 Total Duit MASUK (Pulangan)", f"RM {total_duit_masuk:,.2f}", delta=f"+ (Jual - Fee)")
+    k1.metric("💸 Modal Kena Ada (Total)", f"RM {total_duit_keluar:,.2f}", delta="- Termasuk Fee")
+    k2.metric("💰 Duit Dapat Bersih", f"RM {total_duit_masuk:,.2f}", delta="+ Lepas Tolak Fee")
     
     st.divider()
     
@@ -101,12 +113,7 @@ if st.button("🧮 Kira Total Duit", type="primary"):
     else:
         st.warning("### 😐 BALIK MODAL (Breakeven)")
 
-    # Perincian Kos (Expendable)
-    with st.expander("Tengok Breakdown Kos & Fee"):
-        st.write(f"Harga Saham Semata-mata: RM {nilai_beli_kasar:,.2f}")
-        st.write(f"Kos Beli (Broker+Tax): RM {kos_beli:.2f}")
-        st.write(f"Kos Jual (Broker+Tax): RM {kos_jual:.2f}")
-        st.write(f"**Total Fee Hangus:** RM {total_kos_transaksi:.2f}")
-
-else:
-    st.info("Tekan butang kira di atas.")
+    # Perincian Kos
+    with st.expander("Tengok Breakdown Kos"):
+        st.write(f"Harga Saham (Raw): RM {nilai_beli_kasar:,.2f}")
+        st.write(f"Total Fee Broker (Beli+Jual): RM {total_kos_transaksi:.2f}")
