@@ -128,7 +128,7 @@ def kira_kos_broker_malaysia(nilai_trade, jenis_broker):
 # PROSES MATEMATIK
 unit_total = lot_size * 100
 
-# 1. Kira Nilai Kasar (Ini Slot yang Tuan Nak)
+# 1. Kira Nilai Kasar
 nilai_beli_kasar = buy_price * unit_total
 nilai_jual_kasar = sell_price * unit_total
 
@@ -145,34 +145,35 @@ untung_bersih = total_bersih_dapat - total_modal_keluar
 peratus_untung = (untung_bersih / total_modal_keluar) * 100 if total_modal_keluar > 0 else 0
 total_fee_hangus = kos_beli + kos_jual
 
-# --- 6. PAPARAN OUTPUT (YANG BARU) ---
+# --- 6. PAPARAN OUTPUT (LABEL DITUKAR) ---
 st.divider()
 
 if st.button("🧮 Kira Untung Bersih", type="primary"):
     
     st.subheader("3. Analisis Kewangan")
 
-    # --- ROW 1: FASA BELI (INI YANG TUAN MINTA) ---
+    # --- ROW 1: FASA BELI ---
     st.markdown("#### 🟢 Fasa Beli (Modal)")
     b1, b2, b3 = st.columns(3)
     
-    # SLOT 1: NILAI SAHAM (Harga x Lot)
     b1.metric("1. Nilai Saham (Ikut Lot)", f"RM {nilai_beli_kasar:,.2f}", help="Harga Beli x Unit Saham")
     
-    # SLOT 2: FEE TAMBAHAN
-    b2.metric("2. Caj Broker & Tax", f"RM {kos_beli:,.2f}", help="Duit hangus untuk fee")
+    # --- LABEL DITUKAR DI SINI ---
+    b2.metric("2. Caj (Masa Beli Sahaja)", f"RM {kos_beli:,.2f}", help="Caj ini untuk transaksi beli sahaja.")
     
-    # SLOT 3: TOTAL KELUAR BANK
     b3.metric("3. Total Modal Kena Ada", f"RM {total_modal_keluar:,.2f}", delta="- Tolak Bank", delta_color="inverse")
     
     st.markdown("---")
 
-    # --- ROW 2: FASA JUAL (PULANGAN) ---
+    # --- ROW 2: FASA JUAL ---
     st.markdown("#### 🔴 Fasa Jual (Pulangan)")
     j1, j2, j3 = st.columns(3)
     
     j1.metric("1. Nilai Jual (Ikut Lot)", f"RM {nilai_jual_kasar:,.2f}")
-    j2.metric("2. Caj Broker & Tax", f"RM {kos_jual:,.2f}")
+    
+    # --- LABEL DITUKAR DI SINI ---
+    j2.metric("2. Caj (Masa Jual Sahaja)", f"RM {kos_jual:,.2f}", help="Caj ini akan ditolak bila jual nanti.")
+    
     j3.metric("3. Duit Masuk Bank", f"RM {total_bersih_dapat:,.2f}", delta="+ Masuk Bank")
     
     st.divider()
