@@ -2,7 +2,7 @@ import streamlit as st
 import math
 
 # --- 1. SETUP PAGE ---
-st.set_page_config(page_title="Kalkulator Saham iSaham Pro", page_icon="📈", layout="centered")
+st.set_page_config(page_title="Kalkulator Saham Pro", page_icon="📈", layout="centered")
 
 # --- 2. SIDEBAR (TEMA & INFO) ---
 with st.sidebar:
@@ -11,9 +11,9 @@ with st.sidebar:
     
     st.divider()
     
-    st.header("ℹ️ Fakta Rate MPlus / iSaham")
+    st.header("ℹ️ Info Rate MPlus Global")
     st.info("""
-    **Struktur Rate Rasmi:**
+    **Struktur Fee Rasmi (Bursa):**
     
     1. **Intraday (Jual Hari Sama)**
     - Rate: **0.05%** (Min RM8).
@@ -22,9 +22,9 @@ with st.sidebar:
     - Bawah RM50k: **0.08%**
     - Atas RM50k: **0.05%**
     
-    *Ini adalah struktur 'Online Brokerage Rate' standard untuk akaun Normal & iSaham.*
+    *Ini adalah kadar rasmi untuk pengguna app MPlus Global & akaun Online.*
     """)
-    st.caption("Sumber Semakan: Website Rasmi MPlus & iSaham.")
+    st.caption("Sumber: mplusonline.com/pricing")
 
 # --- 3. CSS ---
 hide_st_style = """
@@ -50,7 +50,7 @@ if tema == "☀️ Mode Cerah (Light)":
 
 # --- 4. TITLE & INPUT ---
 st.title("📈 Kalkulator Saham Pro")
-st.caption("Kira untung bersih dengan ketepatan struktur fee MPlus/iSaham.")
+st.caption("Kira untung bersih: Intraday (0.05%) vs Swing (0.08%).")
 
 st.subheader("1. Masukkan Detail Trade")
 col1, col2 = st.columns(2)
@@ -76,9 +76,10 @@ st.divider()
 st.subheader("2. Pilih Broker")
 
 list_broker = [
-    "MPlus / iSaham (Intra 0.05% | Swing 0.08%)",
+    "MPlus Global / Online (Tiered Rate)",
+    "MPlus Cash Upfront (Legacy Flat 0.05%)",
     "CGS-CIMB iCash (Flat 0.06%)",
-    "MPlus Normal (Margin/Limit Account)",
+    "MPlus Normal (Margin/Limit)",
     "Rakuten Trade (Tiered Flat)",
     "Custom Rate (Set Sendiri)"
 ]
@@ -92,42 +93,50 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
     min_fee = 0.0
     rate_used = 0.0
 
-    # --- LOGIK 1: MPlus / iSaham (Structure Rasmi) ---
-    if "MPlus / iSaham" in jenis_broker:
+    # --- LOGIK 1: MPlus Global / Online (Tiered) ---
+    if "MPlus Global" in jenis_broker:
         min_fee = 8.00
         
         if is_intraday:
-            # Intraday sentiasa 0.05%
+            # Intraday rate
             rate_used = 0.05
         else:
-            # Swing bergantung pada nilai trade (Tier RM50k)
+            # Swing rate bergantung Tier RM50k
             if nilai_trade > 50000:
                 rate_used = 0.05
             else:
-                rate_used = 0.08 # Ini yang tuan maksudkan
+                rate_used = 0.08
         
         brokerage_rm = max(nilai_trade * (rate_used / 100), min_fee)
         desc = f"{rate_used}% (Min RM8)"
 
-    # --- LOGIK 2: CGS-CIMB iCash ---
+    # --- LOGIK 2: MPlus Cash Upfront (Legacy) ---
+    elif "MPlus Cash Upfront" in jenis_broker:
+        min_fee = 8.00
+        rate_used = 0.05
+        brokerage_rm = max(nilai_trade * (rate_used / 100), min_fee)
+        desc = "0.05% (Min RM8)"
+
+    # --- LOGIK 3: CGS-CIMB iCash ---
     elif "CGS-CIMB" in jenis_broker:
         min_fee = 8.00
         rate_used = 0.06
         brokerage_rm = max(nilai_trade * (rate_used / 100), min_fee)
         desc = "0.06% (Min RM8)"
 
-    # --- LOGIK 3: MPlus Normal (Lama) ---
+    # --- LOGIK 4: MPlus Normal (Margin) ---
     elif "MPlus Normal" in jenis_broker:
         if is_intraday:
             rate_used = 0.05
             min_fee = 8.00
+            desc = "0.05% (Min RM8)"
         else:
             rate_used = 0.42
             min_fee = 12.00
+            desc = "0.42% (Min RM12)"
         brokerage_rm = max(nilai_trade * (rate_used / 100), min_fee)
-        desc = f"{rate_used}% (Min RM{min_fee})"
 
-    # --- LOGIK 4: Rakuten ---
+    # --- LOGIK 5: Rakuten ---
     elif "Rakuten" in jenis_broker:
         if nilai_trade <= 1000: return 7.00 + min(nilai_trade * 0.0003, 1000) + min(math.ceil(nilai_trade/1000)*1.5, 1000), "Flat RM7"
         elif nilai_trade <= 9999.99: return 9.00 + min(nilai_trade * 0.0003, 1000) + min(math.ceil(nilai_trade/1000)*1.5, 1000), "Flat RM9"
@@ -135,7 +144,7 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
             brokerage_rm = min(nilai_trade * 0.001, 100.00)
             desc = "0.10%"
 
-    # --- LOGIK 5: Custom ---
+    # --- LOGIK 6: Custom ---
     elif "Custom" in jenis_broker and input_custom:
         r_intra, r_swing, r_min = input_custom
         rate_used = r_intra if is_intraday else r_swing
@@ -147,10 +156,10 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
     if brokerage_rm == 0 and "Rakuten" not in jenis_broker:
         brokerage_rm = max(nilai_trade * 0.0005, 8.00)
 
-    # Caj Wajib
+    # Caj Wajib Lain
     clearing = min(nilai_trade * 0.0003, 1000.00)
     stamp = min(math.ceil(nilai_trade / 1000) * 1.50, 1000.00)
-    sst = 0.00 # SST Saham 0%
+    sst = 0.00 # SST 0%
     
     total_fee = brokerage_rm + clearing + stamp + sst
     return total_fee, desc
@@ -180,6 +189,7 @@ fee_beli_norm, desc_beli_norm = kira_total_kos(nilai_beli_kasar, pilihan_broker,
 fee_jual_norm, desc_jual_norm = kira_total_kos(nilai_jual_kasar, pilihan_broker, False, custom_vals)
 net_norm = nilai_jual_kasar - fee_jual_norm - (nilai_beli_kasar + fee_beli_norm)
 roi_norm = (net_norm / (nilai_beli_kasar + fee_beli_norm)) * 100 if nilai_beli_kasar > 0 else 0
+
 
 # --- 6. PAPARAN OUTPUT ---
 st.divider()
@@ -211,9 +221,9 @@ if st.button("🧮 Bandingkan Untung", type="primary"):
     # Logic Jimat / Beza
     diff = net_intra - net_norm
     if diff > 0.05:
-        st.warning(f"💡 **JIMAT RM {diff:.2f}:** Jika jual hari ni (Intraday), rate 0.05%. Jika simpan (Swing), rate jadi 0.08%.")
+        st.warning(f"💡 **BEZA:** Untung Intraday lebih tinggi sebab fee 0.05%. Swing fee 0.08% (jika < RM50k).")
     elif diff == 0:
-        st.info("ℹ️ **TIADA BEZA:** Rate sama (Mungkin sebab trade anda > RM50k, atau kena Min Fee RM8).")
+        st.info("ℹ️ **TIADA BEZA:** Rate sama (Trade > RM50k atau kena Min Fee RM8).")
     
     with st.expander("Lihat Perincian Modal"):
         st.write(f"**Modal Intraday:** RM {(nilai_beli_kasar + fee_beli_intra):.2f}")
