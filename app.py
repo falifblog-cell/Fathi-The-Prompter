@@ -1,9 +1,37 @@
 import streamlit as st
 import math
 
-# --- SETUP ---
-st.set_page_config(page_title="Kalkulator Saham Fathi", page_icon="📈", layout="centered")
+# --- SETUP MUKA SURAT ---
+st.set_page_config(page_title="Kalkulator Kiraan Fathi", page_icon="📈", layout="centered")
 
+# --- FUNGSI TUKAR TEMA (DARK / LIGHT MODE) ---
+# Kita letak butang ni kat Sidebar (Menu Tepi)
+with st.sidebar:
+    st.header("⚙️ Tetapan")
+    tema = st.radio("Pilih Tema Paparan:", ["🌙 Mode Gelap (Dark)", "☀️ Mode Cerah (Light)"])
+
+# Logic CSS untuk paksa tukar warna
+if tema == "☀️ Mode Cerah (Light)":
+    st.markdown("""
+        <style>
+            /* Tukar background utama jadi putih */
+            .stApp {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            /* Tukar warna input box supaya nampak jelas */
+            .stNumberInput input {
+                color: #000000 !important;
+                background-color: #f0f2f6 !important;
+            }
+            /* Tukar warna tulisan label */
+            .stMarkdown, .stText, p, label {
+                color: #000000 !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+# --- JUDUL APP ---
 st.title("📈 Kalkulator Untung Saham")
 st.caption("Kira untung bersih & aliran tunai sebenar (Cashflow).")
 
@@ -34,7 +62,7 @@ with col2:
     total_jual_raw = sell_price * lot_size * 100
     st.markdown(f"**Nilai Saham:** :red[RM {total_jual_raw:,.2f}]")
 
-# PILIHAN BROKER (Duduk tengah-tengah)
+# PILIHAN BROKER
 st.divider()
 broker_type = st.selectbox("Jenis Broker & Fee:", 
                            ["Min RM 8 (Standard)", "Cash Upfront (0.05%)", "Normal (0.42%)", "Tiada Kos (Paper Trade)"])
@@ -61,7 +89,6 @@ def kira_kos(nilai_trade, jenis_broker):
     clearing = min(nilai_trade * 0.0003, 1000.0)
     
     # 3. Stamp Duty (RM1.50 per RM1000, max RM1000)
-    # Formula: Round up setiap 1000
     stamp = math.ceil(nilai_trade / 1000) * 1.50
     stamp = min(stamp, 1000.0)
     
@@ -97,7 +124,7 @@ if st.button("🧮 Kira Untung Bersih (Net Profit)", type="primary"):
     
     # Tunjuk Aliran Tunai Besar-Besar
     k1, k2 = st.columns(2)
-    k1.metric("💸 Modal Kena Ada (Total)", f"RM {total_duit_keluar:,.2f}", delta="- Termasuk Fee")
+    k1.metric("💸 Modal Kena Ada (Total)", f"RM {total_duit_keluar:,.2f}", delta="- Termasuk Fee", delta_color="inverse")
     k2.metric("💰 Duit Dapat Bersih", f"RM {total_duit_masuk:,.2f}", delta="+ Lepas Tolak Fee")
     
     st.divider()
