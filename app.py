@@ -1,93 +1,127 @@
 import streamlit as st
-import google.generativeai as genai
+import random
 
-# --- CONFIGURATION ---
-st.set_page_config(page_title="Fathi's Ghostwriter (Gemini)", page_icon="✍️", layout="wide")
+st.set_page_config(page_title="Fathi Style Enforcer", page_icon="📝", layout="wide")
 
-st.title("✍️ Fathi's Ghostwriter (Edisi Gemini)")
-st.caption("Guna AI Google (Percuma) untuk tiru gaya tulisan anda.")
+st.title("📝 Fathi Style Enforcer (No AI)")
+st.caption("Alat ini membetulkan ayat 'skema' jadi gaya 'Fathi' menggunakan logik bahasa semata-mata. 100% Zero AI.")
 
-# --- SIDEBAR: API KEY ---
-with st.sidebar:
-    st.header("Setting")
-    api_key = st.text_input("Masukkan Google API Key", type="password", help="Dapatkan free di aistudio.google.com")
+# --- DATA KAMUS GAYA FATHI (Boleh tambah lagi nanti) ---
+# Ini adalah "Otak" manual dia. Kita ajar dia tukar perkataan baku.
+kamus_gaya = {
+    "saya": "aku",
+    "anda": "korang",
+    "tidak": "tak",
+    "mahu": "nak",
+    "kerana": "sebab",
+    "tetapi": "tapi",
+    "bagaimana": "macam mana",
+    "mengapa": "kenapa",
+    "sangat": "gila",
+    "benar": "betul",
+    "sedikit": "sikit",
+    "melihat": "tengok",
+    "berkata": "cakap",
+    "sebenarnya": "actually",
+    "contohnya": "contoh",
+    "kemudian": "lepastu",
+    "sekarang": "now",
+    "mereka": "diorang",
+    "terkejut": "tergamam",
+    "kesimpulannya": "point dia,"
+}
+
+# --- TEMPLATE AYAT (Fill-in-the-blank) ---
+# Ini memastikan struktur ayat sentiasa power macam writer pro.
+templates = {
+    "Intro Gempak": [
+        "Jujur aku cakap, [TOPIK] ni memang nampak remeh. Tapi bila aku kaji balik...",
+        "Ramai orang salah faham pasal [TOPIK]. Diorang ingat benda ni senang.",
+        "Pernah tak korang rasa [TOPIK] tu macam tak masuk akal? Sama, aku pun dulu fikir macam tu."
+    ],
+    "Isi Penting": [
+        "Benda paling mahal yang aku belajar ialah [POINT].",
+        "Korang kena faham satu benda: [POINT]. Kalau tak faham ni, susah.",
+        "Jangan buat [POINT] kalau korang belum ready nak hadap akibat dia."
+    ],
+    "Penutup/Call to Action": [
+        "So, itu je aku nak pesan. Terpulang kat korang nak percaya ke tak.",
+        "Kalau korang rasa benda ni manfaat, tolonglah [ACTION]. Jangan simpan sorang.",
+        "Akhir kata, [ACTION] sekarang sebelum terlambat."
+    ]
+}
+
+# --- FUNGSI TUKAR BAHASA ---
+def tukar_gaya_fathi(teks):
+    words = teks.split()
+    new_words = []
+    count_tukar = 0
     
-    # Model Gemini yang laju dan percuma
-    model_pilihan = st.selectbox("Model", ["gemini-1.5-flash", "gemini-1.5-pro"], index=0)
-    
-    st.divider()
-    st.info("Tips: Masukkan contoh tulisan anda yang paling 'human' (banyak slang, emosi, atau ayat pendek).")
+    for word in words:
+        # Bersihkan tanda baca sikit (koma/titik)
+        clean_word = word.lower().strip(".,!?")
+        
+        if clean_word in kamus_gaya:
+            gantian = kamus_gaya[clean_word]
+            # Kekalkan huruf besar kalau asal huruf besar
+            if word[0].isupper():
+                gantian = gantian.capitalize()
+            # Tambah balik tanda baca
+            if word.endswith(","): gantian += ","
+            elif word.endswith("."): gantian += "."
+            elif word.endswith("?"): gantian += "?"
+            
+            new_words.append(f"**{gantian}**") # Bold kan perkataan yang ditukar
+            count_tukar += 1
+        else:
+            new_words.append(word)
+            
+    return " ".join(new_words), count_tukar
 
-# --- MAIN AREA ---
-col1, col2 = st.columns(2)
+# --- UI WEBSITE ---
+tab1, tab2 = st.tabs(["🔄 Tukar Skema -> Santai", "📋 Template Menulis"])
 
-with col1:
-    st.subheader("1. Gaya Rujukan (Reference)")
-    ref_text = st.text_area("Paste tulisan lama anda di sini:", height=300, 
-                            placeholder="Contoh: 'Aku sebenarnya malas nak tulis panjang. Tapi bila fikir balik, benda ni penting...'")
+# TAB 1: AUTO CONVERT
+with tab1:
+    st.header("Penukar Bahasa Baku")
+    st.write("Masukkan teks skema (macam ChatGPT tulis), app ni akan 'kasarkan' sikit jadi bahasa Fathi.")
+    
+    input_text = st.text_area("Teks Asal (Skema):", height=150, placeholder="Contoh: Saya tidak mahu melakukan perkara itu kerana ia sangat susah.")
+    
+    if st.button("Tukar Gaya!"):
+        if input_text:
+            hasil, jumlah = tukar_gaya_fathi(input_text)
+            st.success(f"Siap! Ada {jumlah} perkataan telah diubah.")
+            st.markdown(hasil) # Markdown supaya boleh nampak bold
+            
+            st.code(hasil.replace("**", ""), language="text") # Teks bersih untuk copy
+        else:
+            st.warning("Masukkan teks dulu.")
 
-with col2:
-    st.subheader("2. Draft / Point Baru")
-    draft_text = st.text_area("Apa yang nak ditulis sekarang?", height=300, 
-                              placeholder="Point: \n- AI makin power\n- Kita kena adapt\n- Jangan takut teknologi")
-
-# --- THE "SECRET SAUCE" PROMPT (GEMINI VERSION) ---
-def humanize_text_gemini(api_key, model_name, reference, draft):
-    # Setup Gemini
-    genai.configure(api_key=api_key)
+# TAB 2: TEMPLATE VAULT
+with tab2:
+    st.header("Bank Ayat Power")
+    st.write("Tak ada idea nak mula? Pilih je template ni.")
     
-    generation_config = {
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "top_k": 64,
-        "max_output_tokens": 8192,
-    }
+    col_a, col_b = st.columns(2)
     
-    model = genai.GenerativeModel(
-        model_name=model_name,
-        generation_config=generation_config,
-        system_instruction="You are a professional Ghostwriter. Your ONLY task is to rewrite the input text to match a specific reference style."
-    )
+    with col_a:
+        jenis = st.selectbox("Nak tulis bahagian mana?", ["Intro Gempak", "Isi Penting", "Penutup/Call to Action"])
+        # Input pembolehubah
+        variable = ""
+        if jenis == "Intro Gempak": variable = st.text_input("Topik apa?", placeholder="Contoh: AI Writer")
+        elif jenis == "Isi Penting": variable = st.text_input("Apa Point Utama?", placeholder="Contoh: konsistensi itu kunci")
+        elif jenis == "Penutup/Call to Action": variable = st.text_input("Nak suruh buat apa?", placeholder="Contoh: share post ni")
     
-    prompt_rahsia = f"""
-    Please rewrite the 'DRAFT TEXT' below. You must STRICTLY mimic the writing style, tone, vocabulary, and sentence structure of the 'REFERENCE TEXT'.
-    
-    CRITICAL INSTRUCTIONS FOR HUMAN-LIKE WRITING:
-    1. **Analyze the Reference:** Look for 'burstiness' (mix of very short and long sentences). Does the writer use slang (Bahasa Pasar)? Is the tone sarcastic or serious?
-    2. **Mimic the Imperfections:** Do not write perfectly. Humans make casual transitions. Avoid robotic words like "Kesimpulannya" or "Tambahan pula". Use natural connectors like "So,", "Lagipun,", "Btw," if the reference uses them.
-    3. **Language:** If the reference is in Malay/Rojak, the output MUST be in Malay/Rojak.
-    
-    ---
-    REFERENCE TEXT (STYLE TO COPY):
-    {reference}
-    ---
-    DRAFT TEXT (CONTENT TO REWRITE):
-    {draft}
-    ---
-    """
-    
-    response = model.generate_content(prompt_rahsia)
-    return response.text
-
-# --- ACTION BUTTON ---
-st.divider()
-
-if st.button("✨ Tulis Semula (Guna Gemini)", type="primary"):
-    if not api_key:
-        st.warning("Sila masukkan Google API Key kat tepi tu dulu.")
-    elif ref_text and draft_text:
-        with st.spinner("Gemini sedang memproses gaya otak anda..."):
-            try:
-                hasil = humanize_text_gemini(api_key, model_pilihan, ref_text, draft_text)
-                
-                st.subheader("📝 Hasil Tulisan:")
-                st.write(hasil)
-                
-                st.divider()
-                st.code(hasil, language="text") # Senang copy
-                st.success("Siap!")
-                
-            except Exception as e:
-                st.error(f"Error: {e} (Mungkin API Key salah atau kuota free dah habis limit per minit)")
-    else:
-        st.warning("Sila isi kedua-dua kotak rujukan dan draft.")
+    with col_b:
+        st.subheader("Hasil:")
+        if variable:
+            pilihan = templates[jenis]
+            for ayat in pilihan:
+                # Ganti placeholder [TOPIK] dengan input user
+                final_ayat = ayat.replace("[TOPIK]", f"*{variable}*").replace("[POINT]", f"*{variable}*").replace("[ACTION]", f"*{variable}*")
+                st.info(final_ayat)
+                if st.button("Copy", key=ayat):
+                    st.toast("Ayat dicopy! (Simulasi)")
+        else:
+            st.warning("Isi kotak sebelah kiri dulu.")
