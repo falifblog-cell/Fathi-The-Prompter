@@ -11,19 +11,17 @@ with st.sidebar:
     
     st.divider()
     
-    st.header("ℹ️ Info Fee Broker")
+    st.header("ℹ️ Intraday vs Normal")
     st.info("""
-    **Nota Fee Minimum:**
-    Walaupun % fee rendah, broker akan caj ikut **MINIMUM** jika nilai trade kecil.
+    **Apa itu Intraday Rate?**
+    Rate diskaun jika anda Beli & Jual kaunter sama pada **HARI YANG SAMA**.
     
-    Contoh: Beli saham RM50.
-    Fee 0.05% = 2 sen.
-    Tapi Broker Minimum = **RM8.00**.
-    Maka tuan kena bayar RM8.00.
+    **Siapa untung?**
+    - Pengguna akaun **Normal / Margin** (Jimat banyak!).
+    - Pengguna **Cash Upfront** (MPlus/Rakuten) biasanya tiada beza (Flat Rate).
     """)
-    st.caption("Nota: MPlus Global Apps ikut rate MPlus Online (0.05% Min RM8) untuk Saham Bursa.")
 
-# --- 3. CSS (HILANGKAN BRANDING & TEMA) ---
+# --- 3. CSS (HILANGKAN BRANDING) ---
 hide_st_style = """
     <style>
     #MainMenu {visibility: hidden;}
@@ -47,7 +45,7 @@ if tema == "☀️ Mode Cerah (Light)":
 
 # --- 4. TITLE & INPUT ---
 st.title("📈 Kalkulator Saham Pro")
-st.caption("Kira untung bersih & kos sebenar trade Bursa Malaysia.")
+st.caption("Perbandingan Untung: Intraday (Hari Sama) vs Swing (Simpan).")
 
 st.subheader("1. Masukkan Detail Trade")
 col1, col2 = st.columns(2)
@@ -57,8 +55,6 @@ with col1:
     st.info("🟢 BUY (Beli)")
     buy_price = st.number_input("Harga Beli (RM)", value=0.500, step=0.005, format="%.3f")
     lot_size = st.number_input("Berapa Lot?", value=1, step=1, help="1 Lot = 100 Unit")
-    
-    # Kiraan 'Live' kat bawah input
     raw_beli = buy_price * lot_size * 100
     st.markdown(f"**Nilai Saham:** :green[RM {raw_beli:,.2f}]")
 
@@ -67,8 +63,6 @@ with col2:
     st.error("🔴 SELL (Jual)")
     sell_price = st.number_input("Harga Jual (RM)", value=0.550, step=0.005, format="%.3f")
     st.write(f"Jual: {lot_size} Lot") 
-    
-    # Kiraan 'Live' kat bawah input
     raw_jual = sell_price * lot_size * 100
     st.markdown(f"**Nilai Saham:** :red[RM {raw_jual:,.2f}]")
 
@@ -76,119 +70,175 @@ with col2:
 st.divider()
 st.subheader("2. Pilih Broker")
 
+# Senarai Broker dengan Logik Intraday vs Normal
 list_broker = [
-    "MPlus / MPlus Global (Cash Upfront) - 0.05% | Min RM8",
-    "MPlus (Normal / Margin) - 0.42% | Min RM12",
-    "Rakuten Trade (Tier 1: < RM1k) - Flat RM7",
-    "Rakuten Trade (Tier 2: RM1k - RM10k) - Flat RM9",
-    "Rakuten Trade (Tier 3: > RM10k) - 0.10% | Max RM100",
-    "Maybank / CGS / RHB / Public (Cash Upfront) - 0.42% | Min RM12",
-    "Investment Bank (Normal / Remisier) - 0.60% | Min RM40",
-    "Custom Rate (0.10%) - CGS Promo / Lain-lain",
-    "Tiada Kos (Paper Trade)"
+    "MPlus Cash Upfront (Flat 0.05%)",
+    "MPlus Normal/Margin (Intraday 0.05% | Swing 0.42%)",
+    "Inv. Bank Normal (Intraday 0.15% | Swing 0.42%)", 
+    "Rakuten Trade (Tiered Flat)",
+    "HLIB / Promo (Flat 0.08%)",
+    "Maybank/CIMB Cash (Flat 0.42%)"
 ]
 pilihan_broker = st.selectbox("Jenis Akaun Broker:", list_broker, index=0)
 
 # --- 5. LOGIK KIRAAN (BACKEND) ---
-def kira_kos_broker_malaysia(nilai_trade, jenis_broker):
-    if "Tiada Kos" in jenis_broker:
-        return 0.0, 0.0
+def kira_fee_mengikut_jenis(nilai_trade, jenis_broker, is_intraday):
     
-    brokerage_fee = 0.0
-    
-    # Logic Rakuten
-    if "Rakuten" in jenis_broker:
-        if nilai_trade <= 1000: brokerage_fee = 7.00
-        elif nilai_trade <= 9999.99: brokerage_fee = 9.00
-        else: brokerage_fee = min(nilai_trade * 0.001, 100.00)
-    # Logic MPlus Cash
-    elif "MPlus / MPlus Global (Cash Upfront)" in jenis_broker:
-        brokerage_fee = max(nilai_trade * 0.0005, 8.00)
-    # Logic MPlus Normal
-    elif "MPlus (Normal" in jenis_broker:
-        brokerage_fee = max(nilai_trade * 0.0042, 12.00)
-    # Logic Bank Cash
-    elif "Cash Upfront)" in jenis_broker:
-        brokerage_fee = max(nilai_trade * 0.0042, 12.00)
-    # Logic Remisier
-    elif "Remisier" in jenis_broker:
-        brokerage_fee = max(nilai_trade * 0.0060, 40.00)
-    # Logic Custom
-    elif "Custom" in jenis_broker:
-        brokerage_fee = max(nilai_trade * 0.0010, 8.00)
+    brokerage_rate = 0.0
+    min_fee = 0.0
+    fee_desc = ""
 
-    # Caj Wajib Lain
-    clearing_fee = min(nilai_trade * 0.0003, 1000.00)
-    stamp_duty = min(math.ceil(nilai_trade / 1000) * 1.50, 1000.00)
-    sst = brokerage_fee * 0.08
+    # --- LOGIK 1: MPlus Cash (Flat) ---
+    if "MPlus Cash" in jenis_broker:
+        brokerage_rate = 0.0005
+        min_fee = 8.00
+        fee_desc = "0.05% (Min RM8)"
+
+    # --- LOGIK 2: MPlus Normal (Beza Besar!) ---
+    elif "MPlus Normal" in jenis_broker:
+        if is_intraday:
+            brokerage_rate = 0.0005 # Intraday murah
+            min_fee = 8.00
+            fee_desc = "Intra: 0.05% (Min RM8)"
+        else:
+            brokerage_rate = 0.0042 # Swing mahal
+            min_fee = 12.00
+            fee_desc = "Swing: 0.42% (Min RM12)"
+
+    # --- LOGIK 3: Investment Bank Normal (Maybank/CIMB/RHB Normal) ---
+    elif "Inv. Bank Normal" in jenis_broker:
+        if is_intraday:
+            brokerage_rate = 0.0015 # Intraday 0.15%
+            min_fee = 12.00 # Selalunya min RM12
+            fee_desc = "Intra: 0.15% (Min RM12)"
+        else:
+            brokerage_rate = 0.0042 # Standard 0.42%
+            min_fee = 12.00
+            fee_desc = "Swing: 0.42% (Min RM12)"
+
+    # --- LOGIK 4: Rakuten (Tiered Flat) ---
+    elif "Rakuten" in jenis_broker:
+        # Rakuten tiada beza intraday/swing, ikut tier
+        if nilai_trade <= 1000:
+            return 7.00, "Flat RM7"
+        elif nilai_trade <= 9999.99:
+            return 9.00, "Flat RM9"
+        else:
+            brokerage_rate = 0.001
+            min_fee = 0.0 # Max capping RM100 handled below
+            fee_desc = "0.10%"
+            
+            # Special Cap Rakuten
+            base_fee = nilai_trade * brokerage_rate
+            return min(base_fee, 100.00), fee_desc
+
+    # --- LOGIK 5: HLIB / Promo (Flat) ---
+    elif "HLIB" in jenis_broker:
+        brokerage_rate = 0.0008
+        min_fee = 8.00
+        fee_desc = "0.08% (Min RM8)"
+
+    # --- LOGIK 6: Maybank/CIMB Cash (Flat Mahal) ---
+    elif "Maybank/CIMB Cash" in jenis_broker:
+        brokerage_rate = 0.0042
+        min_fee = 12.00
+        fee_desc = "0.42% (Min RM12)"
+
+    # Kira Brokerage
+    brokerage_rm = max(nilai_trade * brokerage_rate, min_fee)
+    return brokerage_rm, fee_desc
+
+def kira_total_kos(nilai_trade, jenis_broker, is_intraday):
+    # 1. Brokerage
+    brokerage_rm, desc = kira_fee_mengikut_jenis(nilai_trade, jenis_broker, is_intraday)
     
-    total_fee = brokerage_fee + clearing_fee + stamp_duty + sst
-    return total_fee, brokerage_fee
+    # 2. Clearing (0.03%)
+    clearing = min(nilai_trade * 0.0003, 1000.00)
+    
+    # 3. Stamp Duty (RM1.50/1000)
+    stamp = min(math.ceil(nilai_trade / 1000) * 1.50, 1000.00)
+    
+    # 4. SST (0%)
+    sst = 0.00
+    
+    total_fee = brokerage_rm + clearing + stamp + sst
+    return total_fee, desc
 
 # PROSES MATEMATIK
 unit_total = lot_size * 100
-
-# 1. Kira Nilai Kasar
 nilai_beli_kasar = buy_price * unit_total
 nilai_jual_kasar = sell_price * unit_total
 
-# 2. Kira Fee
-kos_beli, broker_beli = kira_kos_broker_malaysia(nilai_beli_kasar, pilihan_broker)
-kos_jual, broker_jual = kira_kos_broker_malaysia(nilai_jual_kasar, pilihan_broker)
+# --- KIRAAN SENARIO A: INTRADAY ---
+fee_beli_intra, desc_beli_intra = kira_total_kos(nilai_beli_kasar, pilihan_broker, is_intraday=True)
+fee_jual_intra, desc_jual_intra = kira_total_kos(nilai_jual_kasar, pilihan_broker, is_intraday=True)
 
-# 3. Kira Total Akhir
-total_modal_keluar = nilai_beli_kasar + kos_beli
-total_bersih_dapat = nilai_jual_kasar - kos_jual
+net_profit_intra = nilai_jual_kasar - fee_jual_intra - (nilai_beli_kasar + fee_beli_intra)
+roi_intra = (net_profit_intra / (nilai_beli_kasar + fee_beli_intra)) * 100 if nilai_beli_kasar > 0 else 0
 
-# 4. Untung Bersih
-untung_bersih = total_bersih_dapat - total_modal_keluar
-peratus_untung = (untung_bersih / total_modal_keluar) * 100 if total_modal_keluar > 0 else 0
-total_fee_hangus = kos_beli + kos_jual
+# --- KIRAAN SENARIO B: SWING (NORMAL) ---
+fee_beli_norm, desc_beli_norm = kira_total_kos(nilai_beli_kasar, pilihan_broker, is_intraday=False)
+fee_jual_norm, desc_jual_norm = kira_total_kos(nilai_jual_kasar, pilihan_broker, is_intraday=False)
 
-# --- 6. PAPARAN OUTPUT (LABEL DITUKAR) ---
+net_profit_norm = nilai_jual_kasar - fee_jual_norm - (nilai_beli_kasar + fee_beli_norm)
+roi_norm = (net_profit_norm / (nilai_beli_kasar + fee_beli_norm)) * 100 if nilai_beli_kasar > 0 else 0
+
+
+# --- 6. PAPARAN OUTPUT (SIDE BY SIDE) ---
 st.divider()
 
-if st.button("🧮 Kira Untung Bersih", type="primary"):
+if st.button("🧮 Bandingkan Untung", type="primary"):
     
-    st.subheader("3. Analisis Kewangan")
+    st.subheader("3. Perbandingan Keputusan")
+    
+    # KITA BUAT 2 KOLUM BESAR
+    col_intra, col_norm = st.columns(2)
+    
+    # --- KOLUM KIRI: INTRADAY ---
+    with col_intra:
+        st.info("⚡ JUAL HARI SAMA (Intraday)")
+        
+        # Untung Bersih
+        if net_profit_intra > 0:
+            st.metric("Untung Bersih", f"RM {net_profit_intra:,.2f}", f"{roi_intra:.2f}%")
+        else:
+            st.metric("Untung Bersih", f"RM {net_profit_intra:,.2f}", f"{roi_intra:.2f}%", delta_color="inverse")
+            
+        st.write(f"**Rate Beli:** {desc_beli_intra}")
+        st.write(f"**Rate Jual:** {desc_jual_intra}")
+        st.write(f"Total Kos: RM {(fee_beli_intra + fee_jual_intra):.2f}")
 
-    # --- ROW 1: FASA BELI ---
-    st.markdown("#### 🟢 Fasa Beli (Modal)")
-    b1, b2, b3 = st.columns(3)
-    
-    b1.metric("1. Nilai Saham (Ikut Lot)", f"RM {nilai_beli_kasar:,.2f}", help="Harga Beli x Unit Saham")
-    
-    # --- LABEL DITUKAR DI SINI ---
-    b2.metric("2. Caj (Masa Beli Sahaja)", f"RM {kos_beli:,.2f}", help="Caj ini untuk transaksi beli sahaja.")
-    
-    b3.metric("3. Total Modal Kena Ada", f"RM {total_modal_keluar:,.2f}", delta="- Tolak Bank", delta_color="inverse")
-    
-    st.markdown("---")
+    # --- KOLUM KANAN: SWING ---
+    with col_norm:
+        st.success("📅 JUAL ESOK / LUSA (Swing)")
+        
+        # Untung Bersih
+        if net_profit_norm > 0:
+            st.metric("Untung Bersih", f"RM {net_profit_norm:,.2f}", f"{roi_norm:.2f}%")
+        else:
+            st.metric("Untung Bersih", f"RM {net_profit_norm:,.2f}", f"{roi_norm:.2f}%", delta_color="inverse")
+            
+        st.write(f"**Rate Beli:** {desc_beli_norm}")
+        st.write(f"**Rate Jual:** {desc_jual_norm}")
+        st.write(f"Total Kos: RM {(fee_beli_norm + fee_jual_norm):.2f}")
 
-    # --- ROW 2: FASA JUAL ---
-    st.markdown("#### 🔴 Fasa Jual (Pulangan)")
-    j1, j2, j3 = st.columns(3)
-    
-    j1.metric("1. Nilai Jual (Ikut Lot)", f"RM {nilai_jual_kasar:,.2f}")
-    
-    # --- LABEL DITUKAR DI SINI ---
-    j2.metric("2. Caj (Masa Jual Sahaja)", f"RM {kos_jual:,.2f}", help="Caj ini akan ditolak bila jual nanti.")
-    
-    j3.metric("3. Duit Masuk Bank", f"RM {total_bersih_dapat:,.2f}", delta="+ Masuk Bank")
-    
     st.divider()
     
-    # --- ROW 3: KEPUTUSAN ---
-    if untung_bersih > 0:
-        st.success(f"### 🎉 UNTUNG BERSIH: RM {untung_bersih:,.2f}")
-        st.write(f"ROI: **+{peratus_untung:.2f}%**")
-        st.balloons()
-    elif untung_bersih < 0:
-        st.error(f"### 💸 RUGI BERSIH: RM {untung_bersih:,.2f}")
-        st.write(f"ROI: **{peratus_untung:.2f}%**")
-    else:
-        st.warning("### 😐 BALIK MODAL (Breakeven)")
-
-    # Detail Fee
-    with st.expander("Lihat Perincian Fee"):
-        st.write(f"**Total Fee Hangus (Beli + Jual):** RM {total_fee_hangus:.2f}")
+    # ANALISIS
+    diff = net_profit_intra - net_profit_norm
+    if diff > 0.05: # Kalau ada beza lebih 5 sen
+        st.warning(f"💡 **JIMAT:** Kalau jual hari ni (Intraday), tuan untung extra **RM {diff:.2f}** sebab fee lebih murah!")
+    elif diff == 0:
+        st.caption("ℹ️ Tiada beza kos antara Intraday atau Swing untuk broker ini.")
+    
+    # DETAIL TABLE
+    with st.expander("Lihat Perincian Modal & Kos"):
+        st.write("#### Fasa Beli (Modal Keluar)")
+        d1, d2 = st.columns(2)
+        d1.write(f"**Intraday:** RM {(nilai_beli_kasar + fee_beli_intra):.2f}")
+        d2.write(f"**Swing:** RM {(nilai_beli_kasar + fee_beli_norm):.2f}")
+        
+        st.write("#### Fasa Jual (Duit Masuk)")
+        d3, d4 = st.columns(2)
+        d3.write(f"**Intraday:** RM {(nilai_jual_kasar - fee_jual_intra):.2f}")
+        d4.write(f"**Swing:** RM {(nilai_jual_kasar - fee_jual_norm):.2f}")
