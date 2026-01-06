@@ -11,7 +11,7 @@ with st.sidebar:
     
     st.divider()
     
-    # --- INFO RATE DI TEPI (SEPERTI DIMINTA) ---
+    # --- INFO RATE DI TEPI ---
     st.header("📋 Rujukan Rate (2025)")
     st.caption("Semakan di laman web rasmi broker.")
     
@@ -92,7 +92,7 @@ with col2:
 st.divider()
 st.subheader("2. Pilih Broker")
 
-# --- SENARAI BROKER TERKINI (MENGIKUT OFFICIAL WEBSITE) ---
+# --- SENARAI BROKER TERKINI ---
 list_broker = [
     "MPlus Online / Global (Cash Account)",
     "Rakuten Trade (Rate Baru 2025)",
@@ -113,7 +113,6 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
     rate_used = 0.0
 
     # --- A. MPLUS ONLINE / GLOBAL ---
-    # Sumber: mplusonline.com
     if "MPlus Online" in jenis_broker:
         min_fee = 8.00
         if is_intraday:
@@ -126,7 +125,6 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
         desc = f"{rate_used}% (Min RM8)"
 
     # --- B. RAKUTEN TRADE (STRUKTUR BARU) ---
-    # Sumber: rakutentrade.my/faqs/charges-and-fees
     elif "Rakuten" in jenis_broker:
         if nilai_trade <= 100.00:
             brokerage_rm = 1.00
@@ -142,7 +140,6 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
             desc = "Flat RM100"
 
     # --- C. MAYBANK CASH (0.10%) ---
-    # Sumber: maybank2u.com.my (Share Trading Cash Account)
     elif "Maybank Investment" in jenis_broker:
         min_fee = 8.00
         rate_used = 0.10
@@ -150,7 +147,6 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
         desc = "0.10% (Min RM8)"
 
     # --- D. CGS iTRADE CASH (0.06%) ---
-    # Sumber: cgsi.com.my (Cash Upfront)
     elif "CGS iTrade" in jenis_broker:
         min_fee = 8.00
         rate_used = 0.06
@@ -159,7 +155,6 @@ def kira_total_kos(nilai_trade, jenis_broker, is_intraday, input_custom=None):
 
     # --- E. NORMAL ACCOUNT (MARGIN) ---
     elif "Normal" in jenis_broker:
-        # Standard rate untuk akaun bukan cash
         if is_intraday:
             rate_used = 0.15 # Anggaran Intraday
             min_fee = 12.00
@@ -216,6 +211,7 @@ fee_jual_norm, desc_jual_norm = kira_total_kos(nilai_jual_kasar, pilihan_broker,
 net_norm = nilai_jual_kasar - fee_jual_norm - (nilai_beli_kasar + fee_beli_norm)
 roi_norm = (net_norm / (nilai_beli_kasar + fee_beli_norm)) * 100 if nilai_beli_kasar > 0 else 0
 
+
 # --- 6. PAPARAN OUTPUT ---
 st.divider()
 
@@ -238,4 +234,18 @@ if st.button("🧮 Bandingkan Untung", type="primary"):
         st.success("📅 JUAL ESOK (Swing)")
         if net_norm > 0: st.metric("Untung Bersih", f"RM {net_norm:,.2f}", f"{roi_norm:.2f}%")
         else: st.metric("Untung Bersih", f"RM {net_norm:,.2f}", f"{roi_norm:.2f}%", delta_color="inverse")
-        st.caption(f"Rate: {desc
+        st.caption(f"Rate: {desc_beli_norm}")
+        st.write(f"Total Kos: RM {(fee_beli_norm + fee_jual_norm):.2f}")
+
+    st.divider()
+    
+    # Logic Jimat / Beza
+    diff = net_intra - net_norm
+    if diff > 0.05:
+        st.warning(f"💡 **BEZA:** Untung Intraday lebih tinggi.")
+    elif diff == 0:
+        st.info("ℹ️ **TIADA BEZA:** Rate sama untuk trade ini.")
+    
+    with st.expander("Lihat Perincian Modal"):
+        st.write(f"**Modal Intraday:** RM {(nilai_beli_kasar + fee_beli_intra):.2f}")
+        st.write(f"**Modal Swing:** RM {(nilai_beli_kasar + fee_beli_norm):.2f}")
