@@ -1,75 +1,31 @@
 import streamlit as st
 import google.generativeai as genai
 
-# --- KUNCI DITANAM TERUS (JANGAN SHARE KOD NI DENGAN ORANG LAIN) ---
+# Key tuan yang tadi
 API_KEY = "AIzaSyDfgrEVdYtmL9QQyfo3dyQ4TYI_sKRsjcE"
 
-# --- SETUP ---
-st.set_page_config(page_title="Fathi Ghostwriter (Direct)", page_icon="📝", layout="wide")
+st.set_page_config(page_title="Debug Fathi", page_icon="🔧")
+st.title("🔧 Mode Cari Punca Masalah")
 
-st.title("📝 Fathi Ghostwriter (Siap Sedia)")
-st.caption("Tak payah masuk key. Masukkan idea, terus jalan.")
+# UI Simple
+ref = st.text_area("Teks Asal", "Test")
+draft = st.text_area("Draft", "Test")
 
-# --- FUNGSI 'JALA IKAN' (AUTO-DETECT MODEL) ---
-def tulis_guna_sebarang_model(key, rujukan, draf):
-    genai.configure(api_key=key)
-    
-    # Kita suruh dia try semua model sampai jumpa yang boleh
-    senarai_model = ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-pro"]
-    
-    prompt = f"""
-    Bertindak sebagai penulis profesional. Tulis semula DRAF TEKS supaya mengikut GAYA RUJUKAN.
-    
-    ARAHAN:
-    1. Tiru nada (tone), slang, dan ganti nama (aku/kau/saya) dari rujukan.
-    2. Jangan guna bahasa skema/baku sangat.
-    3. Variasikan panjang ayat (pendek & panjang).
-    
-    STYLE: {rujukan}
-    CONTENT: {draf}
-    """
-    
-    error_log = []
-    
-    for nama_model in senarai_model:
-        try:
-            # Cuba model ni
-            model = genai.GenerativeModel(nama_model)
-            response = model.generate_content(prompt)
-            return response.text, nama_model # Berjaya!
-        except Exception:
-            # Gagal, try next one
-            error_log.append(f"{nama_model} gagal")
-            continue
-            
-    return None, str(error_log)
-
-# --- UI ---
-col1, col2 = st.columns(2)
-
-with col1:
-    st.subheader("1. Gaya Asal")
-    ref_text = st.text_area("Contoh tulisan lama:", height=300, 
-                            placeholder="Paste artikel lama yang awak suka gayanya...")
-
-with col2:
-    st.subheader("2. Idea Baru")
-    draft_text = st.text_area("Point nak tulis:", height=300, 
-                              placeholder="Cerita pasal...")
-
-st.divider()
-
-if st.button("✨ Tulis Sekarang", type="primary"):
-    if ref_text and draft_text:
-        with st.spinner("Sedang menulis..."):
-            hasil, info = tulis_guna_sebarang_model(API_KEY, ref_text, draft_text)
-            
-            if hasil:
-                st.success(f"Siap! (Guna model: {info})")
-                st.markdown(hasil)
-                st.divider()
-                st.code(hasil, language="text")
-            else:
-                st.error("Masalah besar: Key ni mungkin salah atau belum aktif.")
-    else:
-        st.warning("Isi kotak teks dulu bos.")
+if st.button("Test Key Sekarang"):
+    try:
+        genai.configure(api_key=API_KEY)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content("Hello, are you working?")
+        
+        st.success("✅ BERJAYA! Key berfungsi.")
+        st.write(response.text)
+        
+    except Exception as e:
+        st.error("❌ GAGAL. Ini punca sebenar (baca bawah):")
+        # Ini akan tunjuk ayat penuh error dari Google
+        st.code(str(e), language="bash")
+        
+        if "API has not been used" in str(e) or "Enable it" in str(e):
+            st.warning("👉 PUNCA: Tuan belum tekan butang 'ENABLE' API. Sila ikut langkah Pilihan A di atas.")
+        elif "Key not found" in str(e) or "API key not valid" in str(e):
+            st.warning("👉 PUNCA: Key salah copy atau dah delete.")
